@@ -1,0 +1,317 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>DocQA — Analyze</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #171a21;
+        --border: #272b35;
+        --text: #e8e9ec;
+        --muted: #8b8f9a;
+        --accent: #6c8cff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        padding: 40px 20px;
+      }
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 14px;
+        margin-bottom: 24px;
+      }
+      nav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 14px;
+      }
+
+      #dropzone {
+        border: 2px dashed var(--border);
+        border-radius: 12px;
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+        margin-top: 20px;
+      }
+      #dropzone.drag {
+        border-color: var(--accent);
+        background: #1a1e2a;
+      }
+      #dropzone p {
+        color: var(--muted);
+        margin: 6px 0 0;
+        font-size: 13px;
+      }
+      #dropzone strong {
+        color: var(--text);
+      }
+      input[type="file"] {
+        display: none;
+      }
+
+      .filelist {
+        margin-top: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .filerow {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .filerow .name {
+        color: var(--text);
+      }
+      .filerow .size {
+        color: var(--muted);
+      }
+
+      button#send {
+        margin-top: 16px;
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button#send:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .results {
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .result-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+      }
+      .result-card .fname {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      .result-card .text {
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        color: #d4d6db;
+      }
+      .result-card .err {
+        color: #ff6b6b;
+        font-size: 13px;
+      }
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+        margin-left: 8px;
+      }
+      .dl-btn {
+        margin-top: 10px; 
+        background: #242838; 
+        color: var(--text); 
+        border: 1px solid var(--border);
+        padding: 6px 14px; 
+        border-radius: 6px; 
+        font-size: 12px; 
+        cursor: pointer;
+        }
+        .dl-btn:hover { 
+            background: #2c3146; 
+        }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Document / Image Analyzer</h1>
+      <div class="sub">
+        Upload up to 5 files — PDFs, Word docs, text files, or images.
+      </div>
+      <nav><a href="/history/">View history →</a></nav>
+
+      <div id="dropzone">
+        <strong>Click to choose files</strong>
+        <p>or drag and drop them here — PDF, DOCX, TXT, JPG, PNG</p>
+        <input
+          type="file"
+          id="fileInput"
+          multiple
+          accept=".pdf,.docx,.txt,image/*"
+        />
+      </div>
+
+      <div class="filelist" id="filelist"></div>
+      <button id="send" disabled onclick="send()">Analyze</button>
+
+      <div class="results" id="results"></div>
+    </div>
+
+    <script>
+      const dropzone = document.getElementById("dropzone");
+      const fileInput = document.getElementById("fileInput");
+      const filelist = document.getElementById("filelist");
+      const sendBtn = document.getElementById("send");
+      const results = document.getElementById("results");
+      let selectedFiles = [];
+
+      dropzone.addEventListener("click", () => fileInput.click());
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.classList.add("drag");
+      });
+      dropzone.addEventListener("dragleave", () =>
+        dropzone.classList.remove("drag"),
+      );
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("drag");
+        setFiles(e.dataTransfer.files);
+      });
+      fileInput.addEventListener("change", () => setFiles(fileInput.files));
+
+      function setFiles(fileListObj) {
+        selectedFiles = Array.from(fileListObj).slice(0, 5);
+        filelist.innerHTML = selectedFiles
+          .map(
+            (f) =>
+              `<div class="filerow"><span class="name">${f.name}</span><span class="size">${(f.size / 1024).toFixed(0)} KB</span></div>`,
+          )
+          .join("");
+        sendBtn.disabled = selectedFiles.length === 0;
+      }
+
+      function cardFor(filename) {
+        const idx = nameToIndex[filename];
+        let card = document.getElementById("card-" + idx);
+        if (!card) {
+            card = document.createElement("div");
+            card.className = "result-card";
+            card.id = "card-" + idx;
+            card.innerHTML = `
+            <div class="fname">${filename}<span class="status" id="status-${idx}">working…</span></div>
+            <div class="text" id="text-${idx}"></div>
+            <button class="dl-btn" id="dl-${idx}" style="display:none" onclick="downloadSummary(${idx}, '${filename.replace(/'/g, "\\'")}')">Download summary</button>
+            `;
+            results.appendChild(card);
+        }
+        return card;
+        }
+
+      function downloadSummary(idx, filename) {
+        const text = document.getElementById("text-" + idx).textContent;
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const lines = doc.splitTextToSize(text, 180);
+        doc.setFontSize(11);
+        doc.text(lines, 15, 20);
+        doc.save(filename.replace(/\.[^.]+$/, "") + "_summary.pdf");
+        }
+
+      async function send() {
+        results.innerHTML = "";
+        sendBtn.disabled = true;
+        const nameToIndex = {};
+        selectedFiles.forEach((f, i) => {
+          nameToIndex[f.name] = i;
+        });
+
+        function cardFor(filename) {
+          const idx = nameToIndex[filename];
+          let card = document.getElementById("card-" + idx);
+          if (!card) {
+            card = document.createElement("div");
+            card.className = "result-card";
+            card.id = "card-" + idx;
+            card.innerHTML = `<div class="fname">${filename}<span class="status" id="status-${idx}">working…</span></div><div class="text" id="text-${idx}"></div>`;
+            results.appendChild(card);
+          }
+          return card;
+        }
+
+        const formData = new FormData();
+        selectedFiles.forEach((f) => formData.append("file", f));
+
+        const response = await fetch("/analyze/", {
+          method: "POST",
+          body: formData,
+        });
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split("\n\n");
+          buffer = events.pop();
+
+          for (const block of events) {
+            const lines = block.split("\n");
+            const eventLine = lines.find((l) => l.startsWith("event: "));
+            const dataLine = lines.find((l) => l.startsWith("data: "));
+            if (!eventLine || !dataLine) continue;
+            const event = eventLine.slice(7);
+            const data = JSON.parse(dataLine.slice(6));
+            const idx = nameToIndex[data.filename];
+
+            if (event === "file_start") {
+              cardFor(data.filename);
+            } else if (event === "token") {
+              cardFor(data.filename);
+              document.getElementById("text-" + idx).textContent += data.text;
+            } else if (event === "file_error") {
+              cardFor(data.filename);
+              document.getElementById("status-" + idx).textContent = "failed";
+              document.getElementById("text-" + idx).innerHTML =
+                `<span class="err">${data.message}</span>`;
+            } else if (event === "file_done") {
+              const statusEl = document.getElementById("status-" + idx);
+              if (statusEl && statusEl.textContent !== "failed") statusEl.textContent = "done";
+              const dlBtn = document.getElementById("dl-" + idx);
+              if (dlBtn) dlBtn.style.display = "inline-block";
+                }
+          }
+        }
+        sendBtn.disabled = false; 
+      }
+    </script>
+  </body>
+</html>
