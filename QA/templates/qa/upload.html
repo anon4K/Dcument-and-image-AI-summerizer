@@ -144,18 +144,18 @@
         margin-left: 8px;
       }
       .dl-btn {
-        margin-top: 10px; 
-        background: #242838; 
-        color: var(--text); 
+        margin-top: 10px;
+        background: #242838;
+        color: var(--text);
         border: 1px solid var(--border);
-        padding: 6px 14px; 
-        border-radius: 6px; 
-        font-size: 12px; 
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 12px;
         cursor: pointer;
-        }
-        .dl-btn:hover { 
-            background: #2c3146; 
-        }
+      }
+      .dl-btn:hover {
+        background: #2c3146;
+      }
     </style>
   </head>
   <body>
@@ -190,6 +190,7 @@
       const sendBtn = document.getElementById("send");
       const results = document.getElementById("results");
       let selectedFiles = [];
+      let nameToIndex = {};
 
       dropzone.addEventListener("click", () => fileInput.click());
       dropzone.addEventListener("dragover", (e) => {
@@ -221,49 +222,53 @@
         const idx = nameToIndex[filename];
         let card = document.getElementById("card-" + idx);
         if (!card) {
-            card = document.createElement("div");
-            card.className = "result-card";
-            card.id = "card-" + idx;
-            card.innerHTML = `
+          card = document.createElement("div");
+          card.className = "result-card";
+          card.id = "card-" + idx;
+          card.innerHTML = `
             <div class="fname">${filename}<span class="status" id="status-${idx}">working…</span></div>
             <div class="text" id="text-${idx}"></div>
             <button class="dl-btn" id="dl-${idx}" style="display:none" onclick="downloadSummary(${idx}, '${filename.replace(/'/g, "\\'")}')">Download summary</button>
             `;
-            results.appendChild(card);
+          results.appendChild(card);
         }
         return card;
-        }
+      }
 
       function downloadSummary(idx, filename) {
-        const text = document.getElementById("text-" + idx).textContent;
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        const lines = doc.splitTextToSize(text, 180);
-        doc.setFontSize(11);
-        doc.text(lines, 15, 20);
-        doc.save(filename.replace(/\.[^.]+$/, "") + "_summary.pdf");
+        try {
+          const textEl = document.getElementById("text-" + idx);
+          if (!textEl) {
+            alert("Couldn't find the summary text for this file.");
+            return;
+          }
+          const text = textEl.textContent;
+          if (!text.trim()) {
+            alert("Summary is empty — nothing to download.");
+            return;
+          }
+          const blob = new Blob([text], { type: "text/plain" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename.replace(/\.[^.]+$/, "") + "_summary.txt";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (err) {
+          console.error("Download failed:", err);
+          alert("Download failed: " + err.message);
         }
+      }
 
       async function send() {
         results.innerHTML = "";
         sendBtn.disabled = true;
-        const nameToIndex = {};
+        nameToIndex = {};
         selectedFiles.forEach((f, i) => {
           nameToIndex[f.name] = i;
         });
-
-        function cardFor(filename) {
-          const idx = nameToIndex[filename];
-          let card = document.getElementById("card-" + idx);
-          if (!card) {
-            card = document.createElement("div");
-            card.className = "result-card";
-            card.id = "card-" + idx;
-            card.innerHTML = `<div class="fname">${filename}<span class="status" id="status-${idx}">working…</span></div><div class="text" id="text-${idx}"></div>`;
-            results.appendChild(card);
-          }
-          return card;
-        }
 
         const formData = new FormData();
         selectedFiles.forEach((f) => formData.append("file", f));
@@ -304,13 +309,14 @@
                 `<span class="err">${data.message}</span>`;
             } else if (event === "file_done") {
               const statusEl = document.getElementById("status-" + idx);
-              if (statusEl && statusEl.textContent !== "failed") statusEl.textContent = "done";
+              const failed = statusEl && statusEl.textContent === "failed";
+              if (statusEl && !failed) statusEl.textContent = "done";
               const dlBtn = document.getElementById("dl-" + idx);
-              if (dlBtn) dlBtn.style.display = "inline-block";
-                }
+              if (dlBtn && !failed) dlBtn.style.display = "inline-block";
+            }
           }
         }
-        sendBtn.disabled = false; 
+        sendBtn.disabled = false;
       }
     </script>
   </body>
