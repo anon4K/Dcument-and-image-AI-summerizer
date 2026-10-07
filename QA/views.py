@@ -6,7 +6,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .llm import stream_summary, stream_image_analysis, stream_with_retry
+from .llm import stream_summary, stream_image_analysis
 from .extract import extract_text
 from .models import QueryLog
 
@@ -36,12 +36,12 @@ async def process_one(upload):
     content_type = upload.content_type
 
     if content_type in IMAGE_TYPES:
-        return "image", stream_with_retry(stream_image_analysis, file_bytes, content_type, retries=2)
+        return "image", stream_image_analysis(file_bytes, content_type)
     if filename.lower().endswith(DOC_EXTENSIONS):
         text = extract_text(file_bytes, filename)
         if not text.strip():
             return "document", None
-        return "document", stream_with_retry(stream_summary, text, retries=2)
+        return "document", stream_summary(text)
     return None, None
 
 

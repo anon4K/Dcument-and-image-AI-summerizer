@@ -247,15 +247,34 @@
             alert("Summary is empty — nothing to download.");
             return;
           }
-          const blob = new Blob([text], { type: "text/plain" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = filename.replace(/\.[^.]+$/, "") + "_summary.txt";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({ unit: "pt", format: "a4" });
+          const margin = 48;
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const pageHeight = doc.internal.pageSize.getHeight();
+          const usableWidth = pageWidth - margin * 2;
+
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(14);
+          doc.text(filename, margin, margin);
+
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(11);
+          const lines = doc.splitTextToSize(text, usableWidth);
+
+          let y = margin + 28;
+          const lineHeight = 15;
+          for (const line of lines) {
+            if (y > pageHeight - margin) {
+              doc.addPage();
+              y = margin;
+            }
+            doc.text(line, margin, y);
+            y += lineHeight;
+          }
+
+          doc.save(filename.replace(/\.[^.]+$/, "") + "_summary.pdf");
         } catch (err) {
           console.error("Download failed:", err);
           alert("Download failed: " + err.message);
